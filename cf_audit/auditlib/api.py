@@ -1,7 +1,7 @@
 
 import os
 import requests
-from .endPoints import EndPoints
+from auditlib.endPoints import EndPoints
 from urllib.parse import urlsplit, parse_qsl
 
 
