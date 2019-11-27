@@ -70,21 +70,16 @@ class Client:
             if response_raw.status_code == 200:
                 response = response_raw.json()
 
-                endPointData += response['resources']
+                if 'resources' in response:
+                    endPointData += response['resources']
+                    next_url = response['next_url']
 
-                next_url = response['next_url']
+                    if next_url is None:
+                        return endPointData
 
-                if next_url is None:
+                    query.clear()
+                    query.update(dict(parse_qsl(urlsplit(next_url).query)))
+
+                else:
+                    endPointData = response
                     return endPointData
-
-                query.clear()
-                query.update(dict(parse_qsl(urlsplit(next_url).query)))
-
-    def sendSingleResponseRequest(self, endPoint='', headers={}):
-        headers.update(self.defaultHeaders)
-        headers.update({'Authorization': f'{self.oauthToken}'})
-
-        response_raw = self.__getRequest(uri=endPoint, headers=headers)
-
-        if response_raw.status_code == 200:
-            return response_raw.json()

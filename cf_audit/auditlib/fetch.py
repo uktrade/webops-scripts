@@ -4,67 +4,97 @@ class Fetch:
     def __init__(self, client):
         self.cf_client = client
 
+    def __filter(self, data, filter):
+        for index, item in enumerate(data):
+            if item['entity']['name'] not in filter:
+                data[index] = ''
+
+        data[:] = (item for item in data if item != '')
+        return data
+
+    def __filter_services(self, data, filter_services, filter_service_plans, exclude_service_plans):
+
+        if filter_services:
+            for index, item in enumerate(data):
+
+                if not item['service']:
+                    data[index] = ''
+                else:
+                    if item['service']['entity']['label'] not in filter_services:
+                        data[index] = ''
+            data[:] = (item for item in data if item != '')
+
+        if filter_service_plans:
+            for index, item in enumerate(data):
+
+                if not item['service_plan']:
+                    data[index] = ''
+                else:
+                    # if plan is in filter?
+                    result = any(plan in item['service_plan']['entity']['name']
+                                 for plan in filter_service_plans)
+
+                    # if plan is in filter and, we want to exclude it, remove it
+                    if exclude_service_plans:
+                        if result:
+                            data[index] = ''
+                    # if we want include matching plan and delete rest of it
+                    else:
+                        if not result:
+                            data[index] = ''
+
+            data[:] = (item for item in data if item != '')
+
+        return data
+
     def organizations(self, filter_organizations=[]):
-        organizations_list = []
+        organizations = []
         query = {'order-by': 'name'}
 
-        for organization in self.cf_client.sendRequest(endPoint=self.cf_client.organizationsEndpoint, query=query):
-            name = organization['entity']['name']
-            id = organization['metadata']['guid']
+        organizations = self.cf_client.sendRequest(
+            endPoint=self.cf_client.organizationsEndpoint, query=query)
 
-            organizations_list.append(
-                {'name': name,
-                 'organization_guid': id})
+        if filter_organizations:
+            return self.__filter(
+                data=organizations, filter=filter_organizations)
 
-            if filter_organizations:
-                if organization['entity']['name'] not in filter_organizations:
-                    organizations_list.pop()
-
-        return organizations_list
+        return organizations
 
     def spaces(self, filter_spaces=[], organization_guid=''):
-        spaces_list = []
+        spaces = []
         query = {'order-by': 'name'}
 
         if organization_guid:
             query.update({'q': f'organization_guid:{organization_guid}'})
 
-        for space in self.cf_client.sendRequest(endPoint=self.cf_client.spacesEndpoint, query=query):
-            name = space['entity']['name']
-            id = space['metadata']['guid']
-            orgnization_id = space['entity']['organization_guid']
-            spaces_list.append({'name': name,
-                                'space_guid': id,
-                                'organization_guid': orgnization_id})
+        spaces = self.cf_client.sendRequest(
+            endPoint=self.cf_client.spacesEndpoint, query=query)
 
-            if filter_spaces:
-                if name not in filter_spaces:
-                    spaces_list.pop()
+        if filter_spaces:
+            space = self.__filter(data=spaces, filter=filter_spaces)
 
-        return spaces_list
+        return spaces
 
     def apps(self, filter_apps=[], space_guid=''):
-        apps_list = []
+        apps = []
         query = {'order-direction': 'asc'}
 
         if space_guid:
             query.update({'q': f'space_guid:{space_guid}'})
 
-        for app in self.cf_client.sendRequest(endPoint=self.cf_client.appsEndpoint, query=query):
-            name = app['entity']['name']
-            guid = app['metadata']['guid']
-            space_guid = app['entity']['space_guid']
+        apps = self.cf_client.sendRequest(
+            endPoint=self.cf_client.appsEndpoint, query=query)
 
-            apps_list.append(
-                {'name': name, 'app_guid': guid, 'space_guid': space_guid})
-            if filter_apps:
-                name = app['entity']['name']
-                if name not in filter_apps:
-                    apps_list.pop()
+        if filter_apps:
+            apps = self.__filter(data=apps, filter=filter)
 
-        return apps_list
+        return apps
 
-    def services_bound_to_app(self, app_guid=''):
+    def __service_info(self, url=''):
+        return self.cf_client.sendRequest(
+            endPoint=f"{self.cf_client.apiEndpoint}{url}")
+
+    def bound_services(self, app_guid='', filter_services=[], filter_service_plans=[], exclude_service_plans=bool):
         service_list = []
         query = {'order-direction': 'asc'}
 
@@ -72,99 +102,61 @@ class Fetch:
             query.update({'q': f'app_guid:{app_guid}'})
 
         for binding in self.cf_client.sendRequest(endPoint=self.cf_client.serviceBindingsEndpoint, query=query):
-            service_instance = self.cf_client.sendSingleResponseRequest(
-                endPoint=f"{self.cf_client.apiEndpoint}{binding['entity']['service_instance_url']}")
+            services_instance_url = binding['entity']['service_instance_url']
 
-            service = ''
-            service_plan = ''
+            service_instance = self.__service_info(url=services_instance_url)
+
+            service_details = ''
+            service_plan_details = ''
+
             if 'service_url' in service_instance['entity']:
-                service_details = self.cf_client.sendSingleResponseRequest(
-                    endPoint=f"{self.cf_client.apiEndpoint}{service_instance['entity']['service_url']}")
-                service_plan_details = self.cf_client.sendSingleResponseRequest(
-                    endPoint=f"{self.cf_client.apiEndpoint}{service_instance['entity']['service_plan_url']}")
 
-                service = service_details['entity']['label']
-                service_plan = service_plan_details['entity']['name']
+                service_url = service_instance['entity']['service_url']
+                service_plan_url = service_instance['entity']['service_plan_url']
 
-            service_instance_name = service_instance['entity']['name']
-          
-            service_list.append({'service_instance_name': service_instance_name,'service':service,'service_plan':service_plan,'app_guid':app_guid})
+                service_details = self.__service_info(url=service_url)
+                service_plan_details = self.__service_info(
+                    url=service_plan_url)
+
+            service_list.append({'service_instance': service_instance,
+                                 'service': service_details, 'service_plan': service_plan_details})
+
+            if filter_services or filter_service_plans:
+                return self.__filter_services(data=service_list, filter_services=filter_services, filter_service_plans=filter_service_plans, exclude_service_plans=exclude_service_plans)
 
         return service_list
 
+    def __routes_info(self, url=''):
+        return self.cf_client.sendRequest(
+            endPoint=f"{self.cf_client.apiEndpoint}{url}")
 
-    def routes_bound_to_app(self, app_guid=''):
-        routes_list = []
+    def mapped_routes(self, app_guid=''):
+        route_mappings = []
         query = {'order-direction': 'asc'}
 
         if app_guid:
             query.update({'q': f'app_guid:{app_guid}'})
 
         for route_mapping in self.cf_client.sendRequest(endPoint=self.cf_client.routeMappingsEndpoint, query=query):
-            route = self.cf_client.sendSingleResponseRequest(
-                endPoint=f"{self.cf_client.apiEndpoint}{route_mapping['entity']['route_url']}")
 
-            route_host = route['entity']['host']
-            route_path = route['entity']['path']
-            domain_name = self.cf_client.sendSingleResponseRequest(
-                f"{self.cf_client.apiEndpoint}{route['entity']['domain_url']}")['entity']['name']
+            route_url = route_mapping['entity']['route_url']
 
-     
-            route_service_url = ''
-            route_service_instance_name = ''   
+            route_details = self.__routes_info(route_url)
 
-            if route['entity']['service_instance_guid']:
-                service_instance = self.cf_client.sendSingleResponseRequest(
-                    f"{self.cf_client.apiEndpoint}{route['entity']['service_instance_url']}")
+            domain_url = route_details['entity']['domain_url']
 
-                if 'route_service_url' in service_instance['entity']:
-                    route_service_url = service_instance['entity']['route_service_url']
+            domain_details = self.__routes_info(url=domain_url)
 
-                if 'service_url' in service_instance['entity']:
-                    service_details = self.cf_client.sendSingleResponseRequest(
-                        endPoint=f"{self.cf_client.apiEndpoint}{service_instance['entity']['service_url']}")
-                    service_plan_details = self.cf_client.sendSingleResponseRequest(
-                        endPoint=f"{self.cf_client.apiEndpoint}{service_instance['entity']['service_plan_url']}")
+            route_service_instance = ''
 
-                    route_service = service_details['entity']['label']
-                    route_service_plan = service_plan_details['entity']['name']
+            if route_details['entity']['service_instance_guid']:
+                route_service_instance_url = route_details['entity']['service_instance_url']
 
-                route_service_instance_name = service_instance['entity']['name']
+                route_service_instance = self.__service_info(
+                    url=route_service_instance_url)
 
-            routes_list.append({'route_url': f'{route_host}.{domain_name}{route_path}',
-                                'route_service_instance_name': route_service_instance_name,
-                                'route_service_url': route_service_url
-                                })
-        return routes_list
-
-
-    def servicePlans(self, filter_servicePlans=[]):
-        servicePlans_list = []
-        servicePlans = self.cf_client.sendRequest(
-            self.cf_client.servicePlansEndpoint)
-
-    def services(self, filter_services=[]):
-        services_list = []
-        query = {'order-direction': 'asc'}
-        for service in self.cf_client.sendRequest(endPoint=self.cf_client.servicesEndpoint, query=query):
-            services_list.append(app)
-            if filter_services:
-                name = service['entity']['name']
-                if name not in filter_services:
-                    services_list.pop()
-
-        return services_list
-
-
-    def routes(self, filter_services=[]):
-        routes_list = []
-        query = {'order-direction': 'asc'}
-
-        return self.cf_client.sendRequest(
-            endPoint=self.cf_client.routesEndpoint, query=query)
-
-    def domains(self, filter_domains=[]):
-        domains_list = []
-        query = {'order-direction': 'asc'}
-        return self.cf_client.sendRequest(
-            endPoint=self.cf_client.domainsEndpoint, query=query)
+            route_mappings.append({'route': route_details,
+                                   'domain': domain_details,
+                                   'route_service_instance': route_service_instance
+                                   })
+        return route_mappings
