@@ -10,6 +10,7 @@ import time
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
+
     options = CommandLine().options
     cf_client = Client()
     fetch = Fetch(cf_client)
