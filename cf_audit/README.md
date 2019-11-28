@@ -88,10 +88,10 @@ py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exc
 
 ### Known Bugs
 
-- script would hang with error , if you have not logged into cf login already , should be fixed for graceful exit after error
+- ~~script would hang with error , if you have not logged into cf login already , should be fixed for graceful exit after error~~
 
 ### Todo
 
-- option to limit search for listed service(s)
-- option to limit search for listed service plan(s)
-- option to exclude listed organizations(s),spaces(s),services(s),service plan
+- ~~option to limit search for listed service(s)~~
+- ~~option to limit search for listed service plan(s)~~
+- option to exclude listed organizations(s),spaces(s),services(s),~~service plan(s)~~
