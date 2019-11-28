@@ -8,6 +8,9 @@
 - option to export results to csv files
 - option to scan for routes or service only , default is to scan both
 - option to limit search to listed organization(s) and/or space(s)
+- option to limit search for listed service(s)
+- option to limit search for listed service plan(s)
+- option to exclude listed service plan(s)
 
 ### Note
 
@@ -37,6 +40,30 @@ You must first login to cloud foundry account on CLI using `cf login` to be able
 
 ```bash
 ./main.py -o dit-staging -s webops-dev,exopps-dev
+```
+
+- search for specific services
+
+```bash
+py main.py -o dit-staging -s exopps-dev --service redis --services-only
+```
+
+- sarch for specific service plans
+
+```bash
+py main.py -o dit-staging -s exopps-dev --service-plans tiny
+```
+
+- exclude searched service plan
+
+```bash
+py main.py -o dit-staging -s exopps-dev --service-plans ha --exclude-services-plans --services-only
+```
+
+- exclude service plan for specific service
+
+```bash
+py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exclude-services-plans --services-only
 ```
 
 - search for routes only and, export to csv
