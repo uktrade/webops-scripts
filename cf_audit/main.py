@@ -12,24 +12,29 @@ if __name__ == "__main__":
     start_time = time.perf_counter()
 
     options = CommandLine().options
-    cf_client = Client()
-    fetch = Fetch(cf_client)
-    write = Write()
 
-    report = Report(client=cf_client, options=options, fetch=fetch).run()
+    if options:
+        cf_client = Client()
+        if cf_client.oauthToken != 'FAILED':
 
-    for report_name, report_data in report.items():
-        if report_data:
-            if not options.quiet:
-                write.to_screen(report=report_data)
+            fetch = Fetch(cf_client)
+            write = Write()
 
-            if options.export_csv:
-                filename = options.routes_filename
-                if report_name == 'services':
-                    filename = options.services_filename
+            report = Report(client=cf_client, options=options,
+                            fetch=fetch).run()
 
-                write.to_file(report=report_data, filename=filename)
+            for report_name, report_data in report.items():
+                if report_data:
+                    if not options.quiet:
+                        write.to_screen(report=report_data)
 
-    run_time = time.perf_counter() - start_time
+                    if options.export_csv:
+                        filename = options.routes_filename
+                        if report_name == 'services':
+                            filename = options.services_filename
 
-    print(f"run time:{run_time}")
+                        write.to_file(report=report_data, filename=filename)
+
+            run_time = time.perf_counter() - start_time
+
+            print(f"run time:{run_time}")

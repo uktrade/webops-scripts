@@ -58,6 +58,8 @@ class CommandLine:
             self.parser.print_usage()
             print(
                 f'{prog} error: --services/-se and --routes-only/-ro are mutually exclusive')
+            return False
+
         return True
 
     @property
