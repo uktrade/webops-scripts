@@ -22,7 +22,7 @@ class CommandLine:
         self.parser.add_argument("--service-plans", "-sp", dest="service_plans",
                                  type=str, help="Report for comma seperated matching service plan(s)")
 
-        self.parser.add_argument("--exclude-services-plans", "-esp", dest="exclude_service_plans",
+        self.parser.add_argument("--exclude-service-plans", "-esp", dest="exclude_service_plans",
                                  action="store_true", default=False, help="Exclude matching plans from the report")
 
         selective_report_group = self.parser.add_mutually_exclusive_group()

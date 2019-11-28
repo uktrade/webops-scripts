@@ -57,13 +57,13 @@ py main.py -o dit-staging -s exopps-dev --service-plans tiny
 - exclude searched service plan
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service-plans ha --exclude-services-plans --services-only
+py main.py -o dit-staging -s exopps-dev --service-plans ha --exclude-service-plans --services-only
 ```
 
 - exclude service plan for specific service
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exclude-services-plans --services-only
+py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exclude-service-plans --services-only
 ```
 
 - search for routes only and, export to csv
