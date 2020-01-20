@@ -86,6 +86,12 @@ py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exc
 ./main.py --services-only
 ```
 
+- scan for environment variable ad you can filter it by org and/or space
+
+```
+./main.py -o dit-services -senvs "X_AUTOSCALING,X_AUTOSCALING_MIN,X_AUTOSCALING_MAX"
+```
+
 ### Known Bugs
 
 - ~~script would hang with error , if you have not logged into cf login already , should be fixed for graceful exit after error~~
