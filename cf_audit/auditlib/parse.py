@@ -25,6 +25,9 @@ class CommandLine:
         self.parser.add_argument("--exclude-service-plans", "-esp", dest="exclude_service_plans",
                                  action="store_true", default=False, help="Exclude matching plans from the report")
 
+        self.parser.add_argument("--scan-env-variables", '-senvs',
+                                 type=str, help="scan for the environment variable in app(s)")
+
         selective_report_group = self.parser.add_mutually_exclusive_group()
         selective_report_group.add_argument("--routes-only", "-ro", action="store_false",
                                             dest="services_only", default=True, help="Show routes report only")
@@ -59,6 +62,14 @@ class CommandLine:
             print(
                 f'{prog} error: --services/-se and --routes-only/-ro are mutually exclusive')
             return False
+        if options.scan_env_variables:
+            options.routes_only = False
+            options.services_only = False
+
+        # if options.scan_env_variables and (options.services or options.service_plans or options.routes_only or options.services_only):
+        #     self.parser.print_usage()
+        #     print(f'{prog} error: --scan-env-variables/-sev can only be used with --organization/-o and/or --space/-s')
+        #     return False
 
         return True
 
