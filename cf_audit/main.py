@@ -32,6 +32,8 @@ if __name__ == "__main__":
                         filename = options.routes_filename
                         if report_name == 'services':
                             filename = options.services_filename
+                        if report_name == 'env_variables':
+                            filename = options.scan_env_vars_filename
 
                         write.to_file(report=report_data, filename=filename)
 

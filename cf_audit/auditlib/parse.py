@@ -41,6 +41,8 @@ class CommandLine:
                                          default="routes.csv", help="name of the routes report file")
         export_report_group.add_argument("--services-report", dest="services_filename",
                                          default="services.csv", help="name of the services report file")
+        export_report_group.add_argument("--scan-env-vars-report", dest="scan_env_vars_filename",
+                                         default="scanned_env_variables.csv", help="name of the scanned env vraibles report file")
 
     def validate_options(self):
         prog = self.parser.prog

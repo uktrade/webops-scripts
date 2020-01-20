@@ -115,7 +115,7 @@ class Report:
         else:
             report_env_variables.insert(0, scan_env_variables_report_header)
 
-        return {'routes': report_routes, 'services': report_services, 'report_env_variables': report_env_variables}
+        return {'routes': report_routes, 'services': report_services, 'env_variables': report_env_variables}
 
     def __routes_and_services(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_services, filter_service_plans, exclue_service_plans):
         report_routes = []
