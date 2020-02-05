@@ -28,6 +28,9 @@ class CommandLine:
         self.parser.add_argument("--scan-env-variables", '-senvs',
                                  type=str, help="scan for the environment variable in app(s)")
 
+        self.parser.add_argument("--scan-env-values", '-senv-values',
+                                 type=str, help="scan for the environment variable values app(s)")
+
         selective_report_group = self.parser.add_mutually_exclusive_group()
         selective_report_group.add_argument("--routes-only", "-ro", action="store_false",
                                             dest="services_only", default=True, help="Show routes report only")
@@ -43,6 +46,8 @@ class CommandLine:
                                          default="services.csv", help="name of the services report file")
         export_report_group.add_argument("--scan-env-vars-report", dest="scan_env_vars_filename",
                                          default="scanned_env_variables.csv", help="name of the scanned env vraibles report file")
+        export_report_group.add_argument("--scan-env-values-report", dest="scan_env_values_filename",
+                                         default="scanned_env_values.csv", help="name of the scanned env value report file")
 
     def validate_options(self):
         prog = self.parser.prog
@@ -67,6 +72,11 @@ class CommandLine:
         if options.scan_env_variables:
             options.routes_only = False
             options.services_only = False
+
+        if options.scan_env_variables and options.scan_env_value:
+            self.parser.print_usage()
+            print(f'{prog} error: --scan-env-variables/-senv and --scan-env-value/-senv-value are mutually exclusive')
+            return False
 
         # if options.scan_env_variables and (options.services or options.service_plans or options.routes_only or options.services_only):
         #     self.parser.print_usage()
