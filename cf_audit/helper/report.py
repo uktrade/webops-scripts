@@ -44,7 +44,7 @@ class Report:
         for env_variable in filter_env_variables:
             scan_env_variables_report_header.append(env_variable)
 
-        scan_env_values_report_header = ['organization', 'space']
+        scan_env_values_report_header = ['organization', 'space','app']
 
         for env_value in filter_env_values:
             scan_env_values_report_header.append(env_value)
