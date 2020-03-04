@@ -45,25 +45,25 @@ You must first login to cloud foundry account on CLI using `cf login` to be able
 - search for specific services
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service redis --services-only
+./main.py -o dit-staging -s exopps-dev --service redis --services-only
 ```
 
 - sarch for specific service plans
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service-plans tiny
+./main.py -o dit-staging -s exopps-dev --service-plans tiny
 ```
 
 - exclude searched service plan
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service-plans ha --exclude-service-plans --services-only
+./main.py -o dit-staging -s exopps-dev --service-plans ha --exclude-service-plans --services-only
 ```
 
 - exclude service plan for specific service
 
 ```bash
-py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exclude-service-plans --services-only
+./main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exclude-service-plans --services-only
 ```
 
 - search for routes only and, export to csv
@@ -86,10 +86,15 @@ py main.py -o dit-staging -s exopps-dev --service redis --service-plans ha --exc
 ./main.py --services-only
 ```
 
-- scan for environment variable ad you can filter it by org and/or space
+- scan for environment variable and you can filter it by org and/or space
 
 ```
 ./main.py -o dit-services -senvs "X_AUTOSCALING,X_AUTOSCALING_MIN,X_AUTOSCALING_MAX"
+```
+
+- scan for environment variable VALUE(s) and, you can filter it by org and/or space
+```
+./main.py -o dit-staging  --scan-env-values sso.trade.uat.uktrade.io --export-csv
 ```
 
 ### Known Bugs

@@ -1,7 +1,5 @@
 from tqdm import tqdm
-
-from pprint import pprint
-
+import re
 
 class Report:
 
@@ -27,10 +25,13 @@ class Report:
             filter_service_plans = self.options.service_plans.split(',')
         if self.options.scan_env_variables:
             filter_env_variables = self.options.scan_env_variables.split(',')
+        if self.options.scan_env_values:
+            filter_env_values = self.options.scan_env_values.split(',')
 
         report_routes = []
         report_services = []
         report_env_variables = []
+        report_env_values = []
 
         service_report_headers = ['organization', 'space', 'app', 'services_instance_name',
                                   'service', 'service_plan']
@@ -39,8 +40,14 @@ class Report:
                                  'route_url', 'route_service_url']
 
         scan_env_variables_report_header = ['organization', 'space']
+
         for env_variable in filter_env_variables:
             scan_env_variables_report_header.append(env_variable)
+
+        scan_env_values_report_header = ['organization', 'space','app']
+
+        for env_value in filter_env_values:
+            scan_env_values_report_header.append(env_value)
 
         progress_bar_pos = 0
 
@@ -77,7 +84,7 @@ class Report:
                     total=len(apps_in_space), position=progress_bar_pos + 2, leave=False)
 
                 # if scaning for env varaibles, do not generate route and service report at all
-                if not self.options.scan_env_variables:
+                if not (self.options.scan_env_variables or self.options.scan_env_values):
                     report_routes, report_services = self.__routes_and_services(
                         apps_in_space=apps_in_space,
                         app_progress_bar=app_progress_bar,
@@ -88,7 +95,7 @@ class Report:
                         exclue_service_plans=self.options.exclude_service_plans
                     )
 
-                else:
+                if self.options.scan_env_variables:
                     report_env_variables += self.__scan_env_variables(
                         apps_in_space=apps_in_space,
                         app_progress_bar=app_progress_bar,
@@ -96,6 +103,16 @@ class Report:
                         space_name=space_name,
                         filter_env_variables=filter_env_variables
                     )
+
+                if self.options.scan_env_values:
+                    report_env_values += self.__scan_env_values(
+                        apps_in_space=apps_in_space,
+                        app_progress_bar=app_progress_bar,
+                        organization_name=organization_name,
+                        space_name=space_name,
+                        filter_env_values=filter_env_values
+                    )
+
 
                 app_progress_bar.refresh()
                 space_progress_bar.update()
@@ -105,17 +122,20 @@ class Report:
 
         organizations_progress_bar.close()
 
-        # if scaning for env varaibles, do not generate route and service report at all
-        if not self.options.scan_env_variables:
+        # if scaning for env varaibles,or values do not generate route and service report at all
+        if not (self.options.scan_env_variables or self.options.scan_env_values):
             if self.options.services_only:
                 report_services.insert(0, service_report_headers)
 
             if self.options.routes_only:
                 report_routes.insert(0, routes_report_headers)
-        else:
+        if self.options.scan_env_variables:
             report_env_variables.insert(0, scan_env_variables_report_header)
 
-        return {'routes': report_routes, 'services': report_services, 'env_variables': report_env_variables}
+        if self.options.scan_env_values:
+            report_env_values.insert(0,scan_env_values_report_header)
+
+        return {'routes': report_routes, 'services': report_services, 'env_variables': report_env_variables,'env_values': report_env_values }
 
     def __routes_and_services(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_services, filter_service_plans, exclue_service_plans):
         report_routes = []
@@ -183,3 +203,31 @@ class Report:
             report_env_variables.append(report)
             app_progress_bar.update()
         return report_env_variables
+
+    def __scan_env_values(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_env_values):
+        report_env_values = []
+        for app in apps_in_space:
+            app_name = app['entity']['name']
+            app_guid = app['metadata']['guid']
+            app_progress_bar.set_description(f"apps/{app_name}")
+
+            app_env_variables = app['entity']['environment_json']
+            report = [organization_name, space_name, app_name]
+
+            if app_env_variables is None:
+                app_env_variables = {}
+
+            variables_in_this_app = []
+            for env_value in filter_env_values:
+                pattern = re.compile(f".*{env_value}.*")
+                
+                for key,value in app_env_variables.items():
+                    if pattern.match(value):
+                        variables_in_this_app.append(key)
+
+            if variables_in_this_app:
+               report = report + variables_in_this_app
+               report_env_values.append(report)
+               
+            app_progress_bar.update()
+        return report_env_values

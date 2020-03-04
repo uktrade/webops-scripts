@@ -34,6 +34,8 @@ if __name__ == "__main__":
                             filename = options.services_filename
                         if report_name == 'env_variables':
                             filename = options.scan_env_vars_filename
+                        if report_name == 'env_values':
+                            filename = options.scan_env_values_filename
 
                         write.to_file(report=report_data, filename=filename)
 
