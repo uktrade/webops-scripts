@@ -14,6 +14,7 @@ class Report:
         filter_services = []
         filter_service_plans = []
         filter_env_variables = []
+        filter_env_values = []
 
         if self.options.organizations:
             filter_orgs = self.options.organizations.split(',')
@@ -85,7 +86,9 @@ class Report:
 
                 # if scaning for env varaibles, do not generate route and service report at all
                 if not (self.options.scan_env_variables or self.options.scan_env_values):
-                    report_routes, report_services = self.__routes_and_services(
+                    space_routes = [] 
+                    space_services = []
+                    space_routes, space_services = self.__routes_and_services(
                         apps_in_space=apps_in_space,
                         app_progress_bar=app_progress_bar,
                         organization_name=organization_name,
@@ -94,6 +97,8 @@ class Report:
                         filter_service_plans=filter_service_plans,
                         exclue_service_plans=self.options.exclude_service_plans
                     )
+                    report_routes += space_routes  
+                    report_services += space_services
 
                 if self.options.scan_env_variables:
                     report_env_variables += self.__scan_env_variables(
@@ -146,6 +151,7 @@ class Report:
             app_progress_bar.set_description(f"apps/{app_name}")
             services = []
             routes = []
+            
             if self.options.services_only:
                 for bound_service in self.fetch.bound_services(app_guid=app_guid, filter_services=filter_services,
                                                                filter_service_plans=filter_service_plans, exclude_service_plans=exclue_service_plans):
@@ -165,6 +171,7 @@ class Report:
                     services.append([organization_name, space_name, app_name,
                                      service_instance_name, service_name, service_plan])
                 report_services += services
+
             if self.options.routes_only:
                 for mapping in self.fetch.mapped_routes(app_guid=app_guid):
                     route_url = f"{mapping['route']['entity']['host']}.{mapping['domain']['entity']['name']}{mapping['route']['entity']['path']}"
@@ -174,8 +181,9 @@ class Report:
                         route_service_instance_name = mapping['route_service_instance']['entity']['name']
                         if 'route_service_url' in mapping['route_service_instance']['entity']:
                             route_service_url = mapping['route_service_instance']['entity']['route_service_url']
+                    
                     routes.append([organization_name, space_name, app_name,
-                                   route_service_instance_name, route_url, route_service_url])
+                            route_service_instance_name, route_url, route_service_url])
                 report_routes += routes
                 app_progress_bar.update()
 
