@@ -103,26 +103,23 @@ class Fetch:
 
         for binding in self.cf_client.sendRequest(endPoint=self.cf_client.serviceBindingsEndpoint, query=query):
             services_instance_url = binding['entity']['service_instance_url']
-
             service_instance = self.__service_info(url=services_instance_url)
 
             service_details = ''
             service_plan_details = ''
 
             if 'service_url' in service_instance['entity']:
-
                 service_url = service_instance['entity']['service_url']
-                service_plan_url = service_instance['entity']['service_plan_url']
-
                 service_details = self.__service_info(url=service_url)
-                service_plan_details = self.__service_info(
-                    url=service_plan_url)
+                service_plan_url = service_instance['entity']['service_plan_url']
+                service_plan_details = self.__service_info(url=service_plan_url)
 
             service_list.append({'service_instance': service_instance,
                                  'service': service_details, 'service_plan': service_plan_details})
 
-            if filter_services or filter_service_plans:
-                return self.__filter_services(data=service_list, filter_services=filter_services, filter_service_plans=filter_service_plans, exclude_service_plans=exclude_service_plans)
+        
+        if filter_services or filter_service_plans:
+            return self.__filter_services(data=service_list, filter_services=filter_services, filter_service_plans=filter_service_plans, exclude_service_plans=exclude_service_plans)
 
         return service_list
 

@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import re
-
+import pprint
 class Report:
 
     def __init__(self, client, options, fetch):
@@ -83,7 +83,7 @@ class Report:
 
                 app_progress_bar = tqdm(
                     total=len(apps_in_space), position=progress_bar_pos + 2, leave=False)
-
+                
                 # if scaning for env varaibles, do not generate route and service report at all
                 if not (self.options.scan_env_variables or self.options.scan_env_values):
                     space_routes = [] 
@@ -149,8 +149,6 @@ class Report:
             app_name = app['entity']['name']
             app_guid = app['metadata']['guid']
             app_progress_bar.set_description(f"apps/{app_name}")
-            services = []
-            routes = []
             
             if self.options.services_only:
                 for bound_service in self.fetch.bound_services(app_guid=app_guid, filter_services=filter_services,
@@ -168,10 +166,10 @@ class Report:
 
                     if bound_service['service_plan']:
                         service_plan = bound_service['service_plan']['entity']['name']
-                    services.append([organization_name, space_name, app_name,
-                                     service_instance_name, service_name, service_plan])
-                report_services += services
 
+                    report_services.append([organization_name, space_name, app_name,
+                                     service_instance_name, service_name, service_plan])
+                
             if self.options.routes_only:
                 for mapping in self.fetch.mapped_routes(app_guid=app_guid):
                     route_url = f"{mapping['route']['entity']['host']}.{mapping['domain']['entity']['name']}{mapping['route']['entity']['path']}"
@@ -182,11 +180,11 @@ class Report:
                         if 'route_service_url' in mapping['route_service_instance']['entity']:
                             route_service_url = mapping['route_service_instance']['entity']['route_service_url']
                     
-                    routes.append([organization_name, space_name, app_name,
+                    report_routes.append([organization_name, space_name, app_name,
                             route_service_instance_name, route_url, route_service_url])
-                report_routes += routes
-                app_progress_bar.update()
-
+              
+            app_progress_bar.update()
+ 
         return (report_routes, report_services)
 
     def __scan_env_variables(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_env_variables):
