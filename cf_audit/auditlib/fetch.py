@@ -1,159 +1,187 @@
+import json
+from datetime import datetime
 
 class Fetch:
 
-    def __init__(self, client):
+    def __init__(self, client, store_file,timeformat):
         self.cf_client = client
+        self.store_file = store_file
+        self.timeformat = timeformat
 
-    def __filter(self, data, filter):
-        for index, item in enumerate(data):
-            if item['entity']['name'] not in filter:
-                data[index] = ''
 
-        data[:] = (item for item in data if item != '')
-        return data
-
-    def __filter_services(self, data, filter_services, filter_service_plans, exclude_service_plans):
-
-        if filter_services:
-            for index, item in enumerate(data):
-
-                if not item['service']:
-                    data[index] = ''
-                else:
-                    if item['service']['entity']['label'] not in filter_services:
-                        data[index] = ''
-            data[:] = (item for item in data if item != '')
-
-        if filter_service_plans:
-            for index, item in enumerate(data):
-
-                if not item['service_plan']:
-                    data[index] = ''
-                else:
-                    # if plan is in filter?
-                    result = any(plan in item['service_plan']['entity']['name']
-                                 for plan in filter_service_plans)
-
-                    # if plan is in filter and, we want to exclude it, remove it
-                    if exclude_service_plans:
-                        if result:
-                            data[index] = ''
-                    # if we want include matching plan and delete rest of it
-                    else:
-                        if not result:
-                            data[index] = ''
-
-            data[:] = (item for item in data if item != '')
-
-        return data
-
-    def organizations(self, filter_organizations=[]):
-        organizations = []
-        query = {'order-by': 'name'}
-
-        organizations = self.cf_client.sendRequest(
-            endPoint=self.cf_client.organizationsEndpoint, query=query)
-
-        if filter_organizations:
-            return self.__filter(
-                data=organizations, filter=filter_organizations)
-
-        return organizations
-
-    def spaces(self, filter_spaces=[], organization_guid=''):
-        spaces = []
-        query = {'order-by': 'name'}
-
-        if organization_guid:
-            query.update({'q': f'organization_guid:{organization_guid}'})
-
-        spaces = self.cf_client.sendRequest(
-            endPoint=self.cf_client.spacesEndpoint, query=query)
-
-        if filter_spaces:
-            space = self.__filter(data=spaces, filter=filter_spaces)
-
-        return spaces
-
-    def apps(self, filter_apps=[], space_guid=''):
-        apps = []
-        query = {'order-direction': 'asc'}
-
-        if space_guid:
-            query.update({'q': f'space_guid:{space_guid}'})
-
-        apps = self.cf_client.sendRequest(
-            endPoint=self.cf_client.appsEndpoint, query=query)
-
-        if filter_apps:
-            apps = self.__filter(data=apps, filter=filter)
-
-        return apps
-
-    def __service_info(self, url=''):
+    def __organizations(self):
         return self.cf_client.sendRequest(
-            endPoint=f"{self.cf_client.apiEndpoint}{url}")
+            endPoint=self.cf_client.organizationsEndpoint)
 
-    def bound_services(self, app_guid='', filter_services=[], filter_service_plans=[], exclude_service_plans=bool):
-        service_list = []
-        query = {'order-direction': 'asc'}
-
-        if app_guid:
-            query.update({'q': f'app_guid:{app_guid}'})
-
-        for binding in self.cf_client.sendRequest(endPoint=self.cf_client.serviceBindingsEndpoint, query=query):
-            services_instance_url = binding['entity']['service_instance_url']
-            service_instance = self.__service_info(url=services_instance_url)
-
-            service_details = ''
-            service_plan_details = ''
-
-            if 'service_url' in service_instance['entity']:
-                service_url = service_instance['entity']['service_url']
-                service_details = self.__service_info(url=service_url)
-                service_plan_url = service_instance['entity']['service_plan_url']
-                service_plan_details = self.__service_info(url=service_plan_url)
-
-            service_list.append({'service_instance': service_instance,
-                                 'service': service_details, 'service_plan': service_plan_details})
-
-        
-        if filter_services or filter_service_plans:
-            return self.__filter_services(data=service_list, filter_services=filter_services, filter_service_plans=filter_service_plans, exclude_service_plans=exclude_service_plans)
-
-        return service_list
-
-    def __routes_info(self, url=''):
+    def __spaces(self):
         return self.cf_client.sendRequest(
-            endPoint=f"{self.cf_client.apiEndpoint}{url}")
+            endPoint=self.cf_client.spacesEndpoint)
 
-    def mapped_routes(self, app_guid=''):
-        route_mappings = []
-        query = {'order-direction': 'asc'}
+    def __apps(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.appsEndpoint)
 
-        if app_guid:
-            query.update({'q': f'app_guid:{app_guid}'})
+    def __services(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.servicesEndpoint)
 
-        for route_mapping in self.cf_client.sendRequest(endPoint=self.cf_client.routeMappingsEndpoint, query=query):
+    def __service_plans(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.servicePlansEndpoint)
 
-            route_url = route_mapping['entity']['route_url']
+    def __service_offerings(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.serviceOfferingsEndpoint)
 
-            route_details = self.__routes_info(route_url)
+    def __service_route_bindings(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.serviceRouteBindingsEndpoint)
 
-            domain_url = route_details['entity']['domain_url']
+    def __domains(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.domainsEndpoint)
 
-            domain_details = self.__routes_info(url=domain_url)
+    def __routes(self):
+        return self.cf_client.sendRequest(
+            endPoint=self.cf_client.routesEndpoint)
 
-            route_service_instance = ''
+    def __service_bindings(self):
+        return self.cf_client.sendRequest_v2(
+            endPoint=self.cf_client.serviceBindingsEndpoint_v2)
 
-            if route_details['entity']['service_instance_guid']:
-                route_service_instance_url = route_details['entity']['service_instance_url']
+    def apps_v2(self):
+        return self.cf_client.sendRequest_v2(
+            endPoint=self.cf_client.appsEndpoint_v2)
 
-                route_service_instance = self.__service_info(
-                    url=route_service_instance_url)
+    def __info_store(self, data):
+        with open(self.store_file, mode="w") as info_file:
+            json.dump(data, info_file)
+            info_file.close()
 
-            route_mappings.append({'route': route_details,
-                                   'domain': domain_details,
-                                   'route_service_instance': route_service_instance
-                                   })
-        return route_mappings
+    def __info_gathering(self):
+        data = {'organizations': {}, 'spaces': {}, 'services': {}, 'apps': {}, 'routes': {
+        }, 'domains': {}, 'service_bindings': {}, 'service_route_bindings': {}, 'timestamp': ''}
+
+        for organization in self.__organizations():
+            data['organizations'].update(
+                {organization['guid']: organization['name']})
+
+        for space in self.__spaces():
+            related_org_id = space['relationships']['organization']['data']['guid']
+            data['spaces'].update({space['guid']: {
+                                  'name': space['name'], 'organization': data['organizations'][related_org_id]}})
+
+        offerings = {}
+
+        for service_offering in self.__service_offerings():
+            offerings.update(
+                {service_offering['guid']: service_offering['name']})
+
+        plans = {}
+        for service_plan in self.__service_plans():
+            related_offering_id = service_plan['relationships']['service_offering']['data']['guid']
+            plans.update({
+                service_plan['guid']:
+                {
+                    'name': service_plan['name'],
+                    'version': service_plan['broker_catalog']['metadata']['AdditionalMetadata']['version'],
+                    'service_name':  offerings[related_offering_id]
+                }
+            })
+
+        offerings = None
+
+        for service in self.__services():
+            related_space_id = service['relationships']['space']['data']['guid']
+            for space_id, space_data in data['spaces'].items():
+                if space_id == related_space_id:
+
+                    data['services'].update({
+                        service['guid']: {
+                            'instance_name': service['name'],
+                            'type': service['type'],
+                            'organization': space_data['organization'],
+                            'space': space_data['name'],
+                        }
+                    })
+
+                    plan_id = None
+                    if 'service_plan' in service['relationships']:
+                        plan_id = service['relationships']['service_plan']['data']['guid']
+
+                    if plan_id is not None:
+                        data['services'][service['guid']].update({
+                            'plan_name': plans[plan_id]['name'],
+                            'version': plans[plan_id]['version'],
+                            'name': plans[plan_id]['service_name']
+                        })
+
+        plans = None
+
+        for app in self.__apps():
+            related_space_id = app['relationships']['space']['data']['guid']
+            for space_id, space_data in data['spaces'].items():
+                if space_id == related_space_id:
+                    data['apps'].update({
+                        app['guid']: {
+                            'name': app['name'],
+                            'state': app['state'],
+                            'organization': space_data['organization'],
+                            'space': space_data['name'],
+                        }
+                    })
+
+        for domain in self.__domains():
+            data['domains'].update({domain['guid']: {'name': domain['name']}})
+
+        for route in self.__routes():
+            related_space_id = route['relationships']['space']['data']['guid']
+            related_domain_id = route['relationships']['domain']['data']['guid']
+            related_app_id = None
+            for destination in route['destinations']:
+                related_app_id = destination['app']['guid']
+
+            data['routes'].update({
+                route['guid']: {
+                    'host': route['host'],
+                    'url': route['url'],
+                    'app_id': related_app_id,
+                    'organization': data['spaces'][related_space_id]['organization'],
+                    'space': data['spaces'][related_space_id]['name'],
+                    'domain': data['domains'][related_domain_id]['name']
+                }
+            })
+
+            data['domains'][related_domain_id].update({
+                'organization': data['spaces'][related_space_id]['organization'],
+                'space': data['spaces'][related_space_id]['name']
+            })
+
+        for service_binding in self.__service_bindings():
+            related_app_id = service_binding['entity']['app_guid']
+            related_service_id = service_binding['entity']['service_instance_guid']
+            if related_app_id not in data['service_bindings']:
+                data['service_bindings'].update(
+                    {related_app_id: {'service_ids': []}})
+
+            data['service_bindings'][related_app_id]['service_ids'].append(
+                related_service_id)
+
+        for service_route_binding in self.__service_route_bindings():
+            relate_route_id = service_route_binding['relationships']['route']['data']['guid']
+            related_service_id = service_route_binding['relationships']['service_instance']['data']['guid']
+            data['service_route_bindings'].update({
+                service_route_binding['guid']:
+                {
+                    'route_id': relate_route_id,
+                    'route_service_url': service_route_binding['route_service_url'],
+                    'service_id': related_service_id
+                }
+            })
+
+        data['timestamp'] = datetime.now().strftime(self.timeformat)
+
+        self.__info_store(data)
+
+    def info(self):
+        return self.__info_gathering()

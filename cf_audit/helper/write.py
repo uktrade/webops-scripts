@@ -12,6 +12,6 @@ class Write:
         with open(filename, mode="w") as report_file:
             report_writer = csv.writer(
                 report_file, delimiter=',', quotechar='"')
-            del report[0]
+            del report[:2]
             for raw in report:
                 report_writer.writerow(raw)

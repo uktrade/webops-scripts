@@ -19,11 +19,11 @@ class CommandLine:
         self.parser.add_argument("--services", "-se", dest="services",
                                  type=str, help="Report for comma seperated list of services")
 
-        self.parser.add_argument("--service-plans", "-sp", dest="service_plans",
+        self.parser.add_argument("--service-versions", "-sv", dest="service_versions",
                                  type=str, help="Report for comma seperated matching service plan(s)")
 
-        self.parser.add_argument("--exclude-service-plans", "-esp", dest="exclude_service_plans",
-                                 action="store_true", default=False, help="Exclude matching plans from the report")
+        self.parser.add_argument("--exclude-service-versions", "-esv", dest="exclude_service_versions",
+                                 type=str, default=False, help="Exclude matching plans from the report")
 
         self.parser.add_argument("--scan-env-variables", '-senvs',
                                  type=str, help="scan for the environment variable in app(s)")
@@ -31,11 +31,13 @@ class CommandLine:
         self.parser.add_argument("--scan-env-values", '-senv-values',
                                  type=str, help="scan for the environment variable values app(s)")
 
-        selective_report_group = self.parser.add_mutually_exclusive_group()
-        selective_report_group.add_argument("--routes-only", "-ro", action="store_false",
-                                            dest="services_only", default=True, help="Show routes report only")
-        selective_report_group.add_argument("--services-only", "-so", action="store_false",
-                                            dest="routes_only", default=True, help="Show services report only")
+        selective_report_group = self.parser.add_argument_group()
+        selective_report_group.add_argument(
+            "--services-only", dest="services_only", action="store_true", default=False, help="process only service reports")
+        selective_report_group.add_argument(
+            "--routes-only", dest="routes_only", action="store_true", default=False, help="process only routes reports")
+        selective_report_group.add_argument(
+            "--scan-env-only", dest="scanenv_only", action="store_true", default=False, help="process only scanning env variables/values reports")
 
         export_report_group = self.parser.add_argument_group()
         export_report_group.add_argument(
@@ -58,35 +60,35 @@ class CommandLine:
             print(f'{prog} error: --quiet/-q is not allowed without --export-csv')
             return False
 
-        if options.exclude_service_plans and (not options.service_plans):
+        if options.exclude_service_versions and (options.service_versions):
             self.parser.print_usage()
             print(
-                f'{prog} error: --exclude-services-plans/-esp is not allowed without --service-plans/-sp')
+                f'{prog} error: --service-version/-sv and, --exclude-services-versions/-esv are mutually exclusive')
             return False
 
-        if options.routes_only and options.services:
+        if (
+            (options.services_only and options.routes_only) or
+            (options.services_only and options.scanenv_only) or
+            (options.routes_only and options.scanenv_only)
+        ):
+            print(
+                f'{prog} error: --services-only , --routes-only and --scanenv--only are mutually exclusive')
+            return False
+
+        #error if scanenv_only is set but, scan_env value or scan env_variable is not set
+        if options.scanenv_only and ( not ( options.scan_env_values or options.scan_env_variables )):
+            print(
+                f'{prog} error: --scanenv--only can only be used with --scan-env-variables/-senv OR --scan-env-values/-senv-values')
+            return False
+
+        if options.scan_env_variables and options.scan_env_values:
             self.parser.print_usage()
             print(
-                f'{prog} error: --services/-se and --routes-only/-ro are mutually exclusive')
-            return False
-        if options.scan_env_variables:
-            options.routes_only = False
-            options.services_only = False
-
-        if options.scan_env_variables and options.scan_env_value:
-            self.parser.print_usage()
-            print(f'{prog} error: --scan-env-variables/-senv and --scan-env-value/-senv-value are mutually exclusive')
+                f'{prog} error: --scan-env-variables/-senv and --scan-env-value/-senv-value are mutually exclusive')
             return False
 
-        # if options.scan_env_variables and (options.services or options.service_plans or options.routes_only or options.services_only):
-        #     self.parser.print_usage()
-        #     print(f'{prog} error: --scan-env-variables/-sev can only be used with --organization/-o and/or --space/-s')
-        #     return False
-
-        return True
+        return options
 
     @property
     def options(self):
-        if self.validate_options():
-            return self.parser.parse_args()
-        return False
+        return self.validate_options()

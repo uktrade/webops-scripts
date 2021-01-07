@@ -1,239 +1,303 @@
 from tqdm import tqdm
 import re
+import json
+import os
+from datetime import datetime
 import pprint
+
+
 class Report:
 
-    def __init__(self, client, options, fetch):
+    def __init__(self, client, options, fetch, store_file,timeformat):
         self.client = client
         self.options = options
+        self.store_file = store_file
         self.fetch = fetch
+        self.timeformat = timeformat
+        self.filter_orgs = []
+        self.filter_spaces = []
 
-    def run(self):
-        filter_orgs = []
-        filter_spaces = []
-        filter_services = []
-        filter_service_plans = []
-        filter_env_variables = []
-        filter_env_values = []
+    def __read_info(self):
+        data = {}
+        with open(self.store_file, 'r') as json_file:
+            data = json.load(json_file)
+            json_file.close()
+        return data
+
+    def __get_info(self):
+        # if file exist , update file only if it is older than one hour
+        if os.path.exists(self.store_file):
+            data = self.__read_info()
+            file_time = datetime.strptime(data['timestamp'], self.timeformat)
+            current_time = datetime.strptime(
+                datetime.now().strftime(self.timeformat), self.timeformat
+            )
+
+            if (current_time - file_time).seconds >= 3600:
+                self.fetch.info()
+        else:
+            if os.path.exists(self.store_file):
+                os.remove(self.store_file)
+            self.fetch.info()
+
+    def __filtered_data(self):
 
         if self.options.organizations:
-            filter_orgs = self.options.organizations.split(',')
+            self.filter_orgs = self.options.organizations.split(',')
         if self.options.spaces:
-            filter_spaces = self.options.spaces.split(',')
-        if self.options.services:
-            filter_services = self.options.services.split(',')
-        if self.options.service_plans:
-            filter_service_plans = self.options.service_plans.split(',')
+            self.filter_spaces = self.options.spaces.split(',')
+
         if self.options.scan_env_variables:
             filter_env_variables = self.options.scan_env_variables.split(',')
         if self.options.scan_env_values:
             filter_env_values = self.options.scan_env_values.split(',')
 
-        report_routes = []
-        report_services = []
-        report_env_variables = []
-        report_env_values = []
+        data = self.__read_info()
 
-        service_report_headers = ['organization', 'space', 'app', 'services_instance_name',
-                                  'service', 'service_plan']
+        # remove filterd orgs and spaces
+        if self.filter_orgs:
+            new_orgs = {}
+            new_spaces = {}
+            for org_id, org_name in data['organizations'].items():
+                if org_name in self.filter_orgs:
+                    new_orgs.update({org_id: org_name})
 
-        routes_report_headers = ['organization', 'space', 'app', 'routing_service_name',
-                                 'route_url', 'route_service_url']
+                    for space_id, space_data in data['spaces'].items():
+                        if space_data['organization'] in org_name:
+                            new_spaces.update({space_id: space_data})
 
-        scan_env_variables_report_header = ['organization', 'space']
+            data['organizations'] = new_orgs
+            data['spaces'] = new_spaces
 
-        for env_variable in filter_env_variables:
-            scan_env_variables_report_header.append(env_variable)
+        else:
+            self.filter_orgs = data['organizations'].values()
 
-        scan_env_values_report_header = ['organization', 'space','app']
+        if self.filter_spaces:
+            new_spaces = {}
+            for space_id, space_data in data['spaces'].items():
+                if space_data['name'] in self.filter_spaces:
+                    new_spaces.update({space_id: space_data})
 
-        for env_value in filter_env_values:
-            scan_env_values_report_header.append(env_value)
+            data['spaces'] = new_spaces
+        else:
+            for space_id, space_data in data['spaces'].items():
+                self.filter_spaces.append(space_data['name'])
 
-        progress_bar_pos = 0
+        return data
 
-        organizations = self.fetch.organizations(
-            filter_organizations=filter_orgs)
+    def build_service_report_data(self, data):
+        filter_services = []
+        filter_service_versions = []
 
-        organizations_progress_bar = tqdm(total=len(
-            organizations), position=progress_bar_pos, leave=False)
+        if self.options.services:
+            filter_services = self.options.services.split(',')
 
-        for organization in organizations:
+        if self.options.exclude_service_versions:
+            filter_service_versions = self.options.exclude_service_versions.split(
+                ',')
+        if self.options.service_versions:
+            filter_service_versions = self.options.service_versions.split(',')
 
-            organization_name = organization['entity']['name']
-            organization_guid = organization['metadata']['guid']
+        new_services_temp = {}
+        for service_id, service_data in data['services'].items():
+            if service_data['organization'] in self.filter_orgs and service_data['space'] in self.filter_spaces:
+                if filter_services:
+                    if 'name' in service_data:
+                        if service_data['name'] in filter_services:
+                            new_services_temp.update(
+                                {service_id: service_data})
+                else:
+                    new_services_temp.update({service_id: service_data})
 
-            organizations_progress_bar.set_description(
-                f"organizations/{organization_name}")
+        new_services = {}
 
-            spaces_in_organization = self.fetch.spaces(filter_spaces=filter_spaces,
-                                                       organization_guid=organization_guid)
+        if self.options.exclude_service_versions:
+            for service_id, service_data in new_services_temp.items():
+                if service_data['version'] not in filter_service_versions:
+                    new_services.update({service_id: service_data})
 
-            space_progress_bar = tqdm(
-                total=len(spaces_in_organization), position=progress_bar_pos + 1, leave=False)
+        else:
+            if self.options.service_versions:
+                for service_id, service_data in new_services_temp.items():
+                    if service_data['version'] in filter_service_versions:
+                        new_services.update({service_id: service_data})
+            else:
+                new_services = new_services_temp
 
-            for space in spaces_in_organization:
-                space_name = space['entity']['name']
-                space_guid = space['metadata']['guid']
+        service_report = [['Service Report', '', '', '', '', ''],
+                          ['organization', 'space', 'instance_name',
+                           'service', 'version', 'service_plan']
+                          ]
 
-                space_progress_bar.set_description(f"spaces/{space_name}")
+        for service in new_services.values():
+            name = None
+            version =  None
+            plan_name = None
+            if 'name' in service:
+                name = service['name']
+                version = service['version']
+                plan_name = service['plan_name']
 
-                apps_in_space = self.fetch.apps(
-                    filter_apps=[], space_guid=space_guid)
+            service_report.append([
+                service['organization'], service['space'],service['instance_name'], name, version, plan_name
+            ])
 
-                app_progress_bar = tqdm(
-                    total=len(apps_in_space), position=progress_bar_pos + 2, leave=False)
-                
-                # if scaning for env varaibles, do not generate route and service report at all
-                if not (self.options.scan_env_variables or self.options.scan_env_values):
-                    space_routes = [] 
-                    space_services = []
-                    space_routes, space_services = self.__routes_and_services(
-                        apps_in_space=apps_in_space,
-                        app_progress_bar=app_progress_bar,
-                        organization_name=organization_name,
-                        space_name=space_name,
-                        filter_services=filter_services,
-                        filter_service_plans=filter_service_plans,
-                        exclue_service_plans=self.options.exclude_service_plans
-                    )
-                    report_routes += space_routes  
-                    report_services += space_services
+        return service_report
 
-                if self.options.scan_env_variables:
-                    report_env_variables += self.__scan_env_variables(
-                        apps_in_space=apps_in_space,
-                        app_progress_bar=app_progress_bar,
-                        organization_name=organization_name,
-                        space_name=space_name,
-                        filter_env_variables=filter_env_variables
-                    )
+    def build_route_report_data(self, data):
 
-                if self.options.scan_env_values:
-                    report_env_values += self.__scan_env_values(
-                        apps_in_space=apps_in_space,
-                        app_progress_bar=app_progress_bar,
-                        organization_name=organization_name,
-                        space_name=space_name,
-                        filter_env_values=filter_env_values
-                    )
+        new_routes = {}
 
+        # filter routes
 
-                app_progress_bar.refresh()
-                space_progress_bar.update()
+        for route_id, route_data in data['routes'].items():
+            if route_data['organization'] in self.filter_orgs and route_data['space'] in self.filter_spaces:
+                new_routes.update({route_id: route_data})
 
-            space_progress_bar.refresh()
-            organizations_progress_bar.update()
+        # add binding if route has it
 
-        organizations_progress_bar.close()
+        rote_ids = new_routes.keys()
 
-        # if scaning for env varaibles,or values do not generate route and service report at all
-        if not (self.options.scan_env_variables or self.options.scan_env_values):
-            if self.options.services_only:
-                report_services.insert(0, service_report_headers)
+        for service_route_binding_id, service_route_binding_data in data['service_route_bindings'].items():
+            related_route_id = service_route_binding_data['route_id']
+            related_service_instance_name = data['services'][service_route_binding_data['service_id']]['instance_name']
 
-            if self.options.routes_only:
-                report_routes.insert(0, routes_report_headers)
+            if related_route_id in rote_ids:
+                data['routes'][related_route_id].update({'route_service_url': data['service_route_bindings'][service_route_binding_id]['route_service_url'],
+                                                         'route_instance_name': related_service_instance_name
+                                                         })
+
+        # generate_report
+        routes_report = [['Route Report', '', '', '', '', ''],
+                         ['organization', 'space', 'app', 'app_url',
+                          'route_service_name', 'route_service_url']
+                         ]
+
+        for route_id, route_data in new_routes.items():
+
+            related_app = None
+            if route_data['app_id'] is not None:
+                related_app = data['apps'][route_data['app_id']]['name']
+
+            related_service_instance_name = None
+            related_route_service_url = None
+
+            if 'route_service_url' in route_data:
+                related_service_instance_name = route_data['route_instance_name']
+                related_route_service_url = route_data['route_service_url']
+
+            routes_report.append([
+                route_data['organization'],
+                route_data['space'],
+                related_app,
+                route_data['url'],
+                related_service_instance_name,
+                related_route_service_url
+            ])
+
+        return routes_report
+
+    def build_scanenv_report_data(self, data):
+
+        filter_env_variables = []
+        filter_env_values = []
+
         if self.options.scan_env_variables:
-            report_env_variables.insert(0, scan_env_variables_report_header)
-
+            filter_env_variables = self.options.scan_env_variables.split(',')
         if self.options.scan_env_values:
-            report_env_values.insert(0,scan_env_values_report_header)
+            filter_env_values = self.options.scan_env_values.split(',')
 
-        return {'routes': report_routes, 'services': report_services, 'env_variables': report_env_variables,'env_values': report_env_values }
+        new_apps = {}
+       
+        for app_id,app_data in data['apps'].items():
+            if app_data['organization'] in self.filter_orgs and app_data['space'] in self.filter_spaces:
+                new_apps.update({app_id:app_data})
 
-    def __routes_and_services(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_services, filter_service_plans, exclue_service_plans):
-        report_routes = []
-        report_services = []
-        for app in apps_in_space:
-            app_name = app['entity']['name']
-            app_guid = app['metadata']['guid']
-            app_progress_bar.set_description(f"apps/{app_name}")
-            
+        for app in self.fetch.apps_v2():
+            app_id = app['metadata']['guid']
+            if app_id in new_apps:
+                new_apps[app_id].update({'vars':app['entity']['environment_json']})
+
+
+        #Process filtered variables
+        if filter_env_variables:
+            for app_id,app_data in new_apps.items():
+                found_vars = []
+                for filter_env_var in filter_env_variables:
+                    if filter_env_var in new_apps[app_id]['vars']:
+                        found_vars.append({filter_env_var:new_apps[app_id]['vars'][filter_env_var]})
+                new_apps[app_id].update({'vars':found_vars})
+
+        if filter_env_values:
+            for app_id,app_data in new_apps.items():
+                found_vals = []
+                for filter_env_val in filter_env_values:
+                    pattern = re.compile(f".*{filter_env_val}.*")
+                    for env_var,env_val in new_apps[app_id]['vars'].items():
+                        if pattern.match(env_val):
+                            found_vals.append({env_var:env_val})
+                new_apps[app_id].update({'vars':found_vals})
+
+        # generate_report
+        scanenv_report = [['Scan Env Variables Report', '', '', '', ''],
+                         ['organization', 'space', 'app', 'Variable',
+                          'Value']
+                         ]
+
+        for app_id,app_data in new_apps.items():
+            if app_data['vars']:
+                for variable in app_data['vars']:
+                    pprint.pp(app_data)
+                    var_name = list(variable.keys())[0]
+                    var_value = list(variable.values())[0]
+                    scanenv_report.append(
+                        [ app_data['organization'],app_data['space'],app_data['name'],var_name,var_value ]
+                    )
+
+        return scanenv_report
+
+    def run(self):
+
+        report_progress_bar = tqdm(total=3, position=0, leave=True)
+
+        # Collect information
+        report_progress_bar.set_description('Collecting information')
+        report_progress_bar.update()
+
+        self.__get_info()
+
+        # filter information
+        report_progress_bar.set_description('Filtering information')
+        report_progress_bar.update()
+        filtered_data = self.__filtered_data()
+
+        report_progress_bar.set_description('Generating Reports')
+        report_progress_bar.update()
+
+        # send report
+        reports = {}
+
+        # if nothing is specified , defualt is to print service and route report
+        if ( (not self.options.services_only) and (not self.options.routes_only) ) and ( not self.options.scanenv_only):
+            reports.update(
+                {'services': self.build_service_report_data(data=filtered_data)})
+            reports.update(
+                {'routes': self.build_route_report_data(data=filtered_data)})
+
+        else:
+            # if service options is specified
             if self.options.services_only:
-                for bound_service in self.fetch.bound_services(app_guid=app_guid, filter_services=filter_services,
-                                                               filter_service_plans=filter_service_plans, exclude_service_plans=exclue_service_plans):
+                reports.update(
+                    {'services': self.build_service_report_data(data=filtered_data)})
 
-                    service_instance_name = bound_service['service_instance']['entity']['name']
-                    service_name = "N/A"
-                    service_plan = "N/A"
-
-                    if bound_service['service']:
-                        service_name = bound_service['service']['entity']['label']
-                    else:
-                        if 'type' in bound_service['service_instance']['entity']:
-                            service_name = bound_service['service_instance']['entity']['type']
-
-                    if bound_service['service_plan']:
-                        service_plan = bound_service['service_plan']['entity']['name']
-
-                    report_services.append([organization_name, space_name, app_name,
-                                     service_instance_name, service_name, service_plan])
-                
             if self.options.routes_only:
-                for mapping in self.fetch.mapped_routes(app_guid=app_guid):
-                    route_url = f"{mapping['route']['entity']['host']}.{mapping['domain']['entity']['name']}{mapping['route']['entity']['path']}"
-                    route_service_url = ''
-                    route_service_instance_name = ''
-                    if mapping['route_service_instance']:
-                        route_service_instance_name = mapping['route_service_instance']['entity']['name']
-                        if 'route_service_url' in mapping['route_service_instance']['entity']:
-                            route_service_url = mapping['route_service_instance']['entity']['route_service_url']
-                    
-                    report_routes.append([organization_name, space_name, app_name,
-                            route_service_instance_name, route_url, route_service_url])
-              
-            app_progress_bar.update()
- 
-        return (report_routes, report_services)
+                reports.update(
+                    {'routes': self.build_route_report_data(data=filtered_data)})
 
-    def __scan_env_variables(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_env_variables):
-        report_env_variables = []
-        for app in apps_in_space:
-            app_name = app['entity']['name']
-            app_guid = app['metadata']['guid']
-            app_progress_bar.set_description(f"apps/{app_name}")
+            if self.options.scan_env_variables or self.options.scan_env_values:
+                reports.update({'scanenv': self.build_scanenv_report_data(data=filtered_data)})
 
-            app_env_variables = app['entity']['environment_json']
-            report = [organization_name, space_name, app_name]
+        report_progress_bar.clear()
+        report_progress_bar.close()
 
-            if app_env_variables is None:
-                app_env_variables = {}
-
-            for env_var in filter_env_variables:
-                value = "None"
-                if env_var in app_env_variables.keys():
-                    value = app_env_variables[env_var]
-                report = report + [value]
-
-            report_env_variables.append(report)
-            app_progress_bar.update()
-        return report_env_variables
-
-    def __scan_env_values(self, apps_in_space, app_progress_bar, organization_name, space_name, filter_env_values):
-        report_env_values = []
-        for app in apps_in_space:
-            app_name = app['entity']['name']
-            app_guid = app['metadata']['guid']
-            app_progress_bar.set_description(f"apps/{app_name}")
-
-            app_env_variables = app['entity']['environment_json']
-            report = [organization_name, space_name, app_name]
-
-            if app_env_variables is None:
-                app_env_variables = {}
-
-            variables_in_this_app = []
-            for env_value in filter_env_values:
-                pattern = re.compile(f".*{env_value}.*")
-                
-                for key,value in app_env_variables.items():
-                    if pattern.match(value):
-                        variables_in_this_app.append(key)
-
-            if variables_in_this_app:
-               report = report + variables_in_this_app
-               report_env_values.append(report)
-               
-            app_progress_bar.update()
-        return report_env_values
+        return reports

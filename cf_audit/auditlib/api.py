@@ -43,6 +43,10 @@ class Client:
         return f'{self.apiEndpoint}/{EndPoints.SERVICE_PLANS.value}'
 
     @property
+    def serviceOfferingsEndpoint(self):
+        return f'{self.apiEndpoint}/{EndPoints.SERVICE_OFFERINGS.value}'
+
+    @property
     def spacesEndpoint(self):
         return f'{self.apiEndpoint}/{EndPoints.SPACES.value}'
 
@@ -51,35 +55,66 @@ class Client:
         return f'{self.apiEndpoint}/{EndPoints.ORGS.value}'
 
     @property
-    def serviceBindingsEndpoint(self):
+    def serviceRouteBindingsEndpoint(self):
+        return f'{self.apiEndpoint}/{EndPoints.SERVICE_ROUTE_BINDINGS.value}'
+
+    @property
+    def serviceBindingsEndpoint_v2(self):
         return f'{self.apiEndpoint}/{EndPoints.SERVICE_BINDINGS.value}'
 
     @property
-    def routeMappingsEndpoint(self):
-        return f'{self.apiEndpoint}/{EndPoints.ROUTE_MAPPINGS.value}'
+    def appsEndpoint_v2(self):
+        return f'{self.apiEndpoint}/{EndPoints.APPS_V2.value}'        
 
-    def sendRequest(self, endPoint='', headers={}, query={}):
+    def sendRequest(self, endPoint='', headers={}):
         headers.update(self.defaultHeaders)
         headers.update({'Authorization': f'{self.oauthToken}'})
 
         endPointData = []
+        query = ({'page': '1', 'per_page': '100'})
 
         while True:
             response_raw = self.__getRequest(
                 uri=endPoint, headers=headers, query=query)
+
             if response_raw.status_code == 200:
                 response = response_raw.json()
 
-                if 'resources' in response:
+                if response['pagination']['next'] is not None:
                     endPointData += response['resources']
-                    next_url = response['next_url']
-
-                    if next_url is None:
-                        return endPointData
-
+                    endPoint = response['pagination']['next']['href']
                     query.clear()
-                    query.update(dict(parse_qsl(urlsplit(next_url).query)))
 
                 else:
-                    endPointData = response
+                    query.clear()
+                    endPointData += response['resources']
                     return endPointData
+            else:
+                print(response_raw.status_code)
+
+    def sendRequest_v2(self, endPoint='', headers={}):
+        headers.update(self.defaultHeaders)
+        headers.update({'Authorization': f'{self.oauthToken}'})
+
+        endPointData = []
+        query = ({'page': '1', 'per_page': '100'})
+
+        while True:
+            response_raw = self.__getRequest(
+                uri=endPoint, headers=headers, query=query)
+
+            if response_raw.status_code == 200:
+                response = response_raw.json()
+
+                if response['next_url'] is not None:
+                    endPointData += response['resources']
+                    query.clear()
+                    query.update(
+                        dict(parse_qsl(urlsplit(response['next_url']).query)))
+
+                else:
+                    query.clear()
+                    endPointData += response['resources']
+                    return endPointData
+            else:
+                print(response_raw.status_code)
